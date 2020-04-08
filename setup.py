@@ -7,7 +7,8 @@ setup(
     install_requires=[
         'click',
         'boto3',
-        'loguru'
+        'loguru',
+        'aws-parallelcluster==2.6.0',  # AMI Filtering relies on this version, see _ami_builder
     ],
 
     entry_points="""
