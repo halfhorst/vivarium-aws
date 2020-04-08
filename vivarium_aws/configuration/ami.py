@@ -31,11 +31,11 @@ _ami_builder = {
     "source_ami_filter": {
       "filters": {
         "virtualization-type": "hvm",
-        "name": "ubuntu/images/*ubuntu-bionic-18.04-amd64-server-*",
+        #  aws-parallelcluster version must match setup.py
+        "name": "aws-parallelcluster-2.6.0-ubuntu-1804-*",
         "root-device-type": "ebs"
       },
-      #  The owner is Canonical
-      "owners": ["099720109477"],
+      "owners": ["amazon"],
       "most_recent": True
     },
     "instance_type": None,
@@ -83,7 +83,6 @@ sudo tar -xvzf /tmp/code.tar.gz --directory $HOME
 cd $HOME/simulation_code
 sudo -u ubuntu $HOME/miniconda3/envs/simulation/bin/pip install -e .
 """
-
 
 def make_configuration(ami_name: str, code_root: Path, output_root: Path,
                        artifact_paths: list, region: str):
@@ -210,7 +209,7 @@ def determine_correct_instance(ami_size_estimate_mb: int) -> str:
     artifact data size, with affordance for overhead.
     """
 
-    ami_size_estimate_mb += 250  # overhead
+    ami_size_estimate_mb += 4096  # overhead for the aws-parallelcluster base AMI
 
     client = boto3.client('ec2')
     instance_options = client.describe_instance_types(InstanceTypes=_general_purpose_instance_types)["InstanceTypes"]
