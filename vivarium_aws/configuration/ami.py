@@ -70,7 +70,8 @@ sudo apt-get install -y tar mosh
 wget -q -O install_miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 sudo chmod +x install_miniconda.sh
 sudo -u ubuntu ./install_miniconda.sh -b -q
-echo "export PATH=$HOME/miniconda3/bin:$PATH" >> $HOME/.bashrc
+
+echo "export PATH=\$HOME/miniconda3/bin:\$PATH" >> $HOME/.bashrc
 
 $HOME/miniconda3/bin/conda create -y --name simulation python=3.6
 $HOME/miniconda3/condabin/conda install redis
