@@ -1,7 +1,6 @@
 from configparser import ConfigParser
 
 import boto3
-import s3fs
 
 
 def get_default_configuration(cluster_name: str) -> ConfigParser:
@@ -118,11 +117,3 @@ def make_mosh_security_group(region: str, vpc_id: str) -> str:
     )
 
     return security_group.group_id
-
-
-# # TODO: Move to boto3 for this
-# def upload_to_s3(path: str, file_contents: str):
-#     fs = s3fs.S3FileSystem()
-#     bootstrap_file = fs.open(path, mode='w')
-#     bootstrap_file.write(file_contents)
-#     bootstrap_file.close()
