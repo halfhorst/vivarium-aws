@@ -32,7 +32,7 @@ _ami_builder = {
       "filters": {
         "virtualization-type": "hvm",
         #  aws-parallelcluster version must match setup.py
-        "name": "aws-parallelcluster-2.6.0-ubuntu-1804-*",
+        "name": "aws-parallelcluster-2.6.1-ubuntu-1804-*",
         "root-device-type": "ebs"
       },
       "owners": ["amazon"],

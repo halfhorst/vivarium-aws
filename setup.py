@@ -8,7 +8,7 @@ setup(
         'click',
         'boto3',
         'loguru',
-        'aws-parallelcluster==2.6.0',  # AMI Filtering relies on this version, see _ami_builder
+        'aws-parallelcluster==2.6.1',  # AMI Filtering relies on this version, see configuration.ami
     ],
 
     entry_points="""
