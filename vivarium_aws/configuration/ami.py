@@ -83,26 +83,26 @@ sudo mv {tmp_artifact_locations} /usr/local/share/vivarium/artifacts || true
 sudo tar -xvzf /tmp/code.tar.gz --directory $HOME
 cd $HOME/simulation_code
 sudo -u ubuntu $HOME/miniconda3/envs/simulation/bin/pip install -e .
+
 """
 
 def make_configuration(ami_name: str, code_root: Path, output_root: Path,
                        artifact_paths: list, region: str):
     """Generate a Packer configuration file for provisioning an AMI that
     contains the data artifacts and simulation code defined in code_root.
-    
+
     The configuration includes secondary files so the entire result is placed
     in a directory named after ami_name.
-    
-    
+
     The artifact file locations are scraped from the model specifications found
     in `code_root` unless paths are explicitly passed by `artifact_paths`.
     Provisioners are created to load each artifact into the image.
-    
+
     The artifact paths in the model specification files are modified to
     point to the pre-determined location inside the image where artifacts are
     placed.
     """
-    
+
     output_path = output_root / f"{ami_name}_ami_configuration"
     output_path.mkdir(exist_ok=True)
 
@@ -119,9 +119,9 @@ def make_configuration(ami_name: str, code_root: Path, output_root: Path,
     update_model_specification_artifact_paths(code_root)
 
     ami_size_estimate = get_ami_size_estimate_mib(artifact_paths)
-    
+
     configuration = _base_configuration
-    
+
     ami_builder = _ami_builder
     ami_builder['region'] = region
     ami_builder['instance_type'] = determine_correct_instance(ami_size_estimate)
@@ -177,7 +177,7 @@ def get_artifact_paths(code_root: Path) -> list:
 def update_model_specification_artifact_paths(code_root: Path) -> list:
     """Parse a Vivarium package directory tree and upate the model specifications
     to point artifact paths to the correct location in the image.
-    
+
     Until component ordering is inconsequential, e.g. we have dependency
     ordering, yaml manipulation must preserve order.
     """
