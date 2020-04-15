@@ -70,6 +70,7 @@ sudo apt-get install -y tar mosh
 wget -q -O install_miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 sudo chmod +x install_miniconda.sh
 sudo -u ubuntu ./install_miniconda.sh -b -q
+rm install_miniconda.sh
 
 echo "export PATH=\$HOME/miniconda3/bin:\$PATH" >> $HOME/.bashrc
 
@@ -78,10 +79,10 @@ $HOME/miniconda3/condabin/conda install redis
 $HOME/miniconda3/condabin/conda install hdf5
 
 sudo mkdir -p /usr/local/share/vivarium/artifacts
-sudo mv {tmp_artifact_locations} /usr/local/share/vivarium/artifacts || true
+sudo mv {temp_artifact_locations} /usr/local/share/vivarium/artifacts || true
 
 sudo tar -xvzf /tmp/code.tar.gz --directory $HOME
-cd $HOME/simulation_code
+cd $HOME/{package_name}
 sudo -u ubuntu $HOME/miniconda3/envs/simulation/bin/pip install -e .
 
 """
@@ -106,10 +107,12 @@ def make_configuration(ami_name: str, code_root: Path, output_root: Path,
     output_path = output_root / f"{ami_name}_ami_configuration"
     output_path.mkdir(exist_ok=True)
 
+    package_name = code_root.name
+
     #  This process overwrites configuration in the code root so we operate on a copy
     tempdir = tempfile.TemporaryDirectory()
     tempdir_path = Path(tempdir.name) / 'vaws_configuration'
-    shutil.copytree(code_root, tempdir_path, ignore=shutil.ignore_patterns('*.hdf'))
+    shutil.copytree(code_root, tempdir_path, ignore=shutil.ignore_patterns('*.hdf', '*.h5'))
     code_root = tempdir_path
 
     if not artifact_paths:
@@ -133,11 +136,12 @@ def make_configuration(ami_name: str, code_root: Path, output_root: Path,
     configuration['provisioners'].extend(make_artifact_provisioners(artifact_paths))
     configuration['provisioners'].append(_environment_provisioner)
 
-    tar_vivarium_package(code_root, output_path)
+    tar_vivarium_package(code_root, output_path, archive_name=package_name)
 
     with open(output_path / f"provision_environment.sh", "w") as f:
-        tmp_artifact_locations = ' '.join([f'/tmp/{art.name}' for art in artifact_paths])
-        f.write(_environment_provisioner_script.format(tmp_artifact_locations=tmp_artifact_locations))
+        temp_artifact_locations = ' '.join([f'/tmp/{art.name}' for art in artifact_paths])
+        f.write(_environment_provisioner_script.format(temp_artifact_locations=temp_artifact_locations,
+                                                       package_name=package_name))
 
     with open(output_path / f"{ami_name}_ami.json", "w") as f:
         f.write(json.dumps(configuration, indent=2))
@@ -240,12 +244,12 @@ def tar_exclude_hdf(fname: str) -> bool:
     return False
 
 
-def tar_vivarium_package(source: Path, target: Path) -> str:
+def tar_vivarium_package(source: Path, target: Path, archive_name: str) -> str:
     """Create a tarball at `target` containing the Vivarium package located at
     `source`, excluding its artifact data.
     """
 
     tar_path = target / "code.tar.gz"
     with tarfile.open(tar_path, 'w:gz') as tarball:
-        tarball.add(str(source), arcname="simulation_code", exclude=tar_exclude_hdf)
+        tarball.add(str(source), arcname=archive_name, exclude=tar_exclude_hdf)
     return tar_path
