@@ -2,6 +2,8 @@ from configparser import ConfigParser
 from tempfile import TemporaryFile
 
 import boto3
+from botocore.exceptions import ClientError
+from loguru import logger
 
 
 _post_install_script = """
@@ -104,9 +106,13 @@ def make_mosh_security_group(region: str, vpc_id: str) -> str:
 
     client = boto3.client('ec2', region_name=region)
 
-    response = client.describe_security_groups(Filters=[
-        {'Name': 'group-name', 'Values': ['vaws-mosh']}
-    ])
+    try:
+        response = client.describe_security_groups(Filters=[
+            {'Name': 'group-name', 'Values': ['vaws-mosh']}
+        ])
+    except ClientError as e:
+        logger.error(e)
+        raise
 
     if len(response['SecurityGroups']) > 0:
         return response['SecurityGroups'][0]['GroupId']
@@ -114,19 +120,22 @@ def make_mosh_security_group(region: str, vpc_id: str) -> str:
     ec2 = boto3.resource('ec2')
     vpc = ec2.Vpc(vpc_id)
 
-    security_group = vpc.create_security_group(
-        Description='Enable mosh connections over UDP',
-        GroupName='vaws-mosh',
-        VpcId=vpc_id,
-        DryRun=False
-    )
-
-    response = security_group.authorize_ingress(
-        CidrIp='0.0.0.0/0',
-        FromPort=60001,
-        ToPort=60020,
-        IpProtocol='udp'
-    )
+    try:
+        security_group = vpc.create_security_group(
+            Description='Enable mosh connections over UDP',
+            GroupName='vaws-mosh',
+            VpcId=vpc_id,
+            DryRun=False
+        )
+        response = security_group.authorize_ingress(
+            CidrIp='0.0.0.0/0',
+            FromPort=60001,
+            ToPort=60020,
+            IpProtocol='udp'
+        )
+    except ClientError as e:
+        logger.error(e)
+        raise
 
     return security_group.group_id
 
@@ -136,4 +145,8 @@ def upload_to_s3(bucket: str, key: str, contents: str):
     with TemporaryFile() as f:
         f.write(bytes(contents, encoding='UTF-8'))
         f.seek(0)
-        response = s3_client.upload_fileobj(f, bucket, key)
+        try:
+            response = s3_client.upload_fileobj(f, bucket, key)
+        except ClientError as e:
+            logger.error(e)
+            raise

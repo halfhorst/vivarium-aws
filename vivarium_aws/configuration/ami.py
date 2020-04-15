@@ -8,6 +8,8 @@ import tempfile
 from pathlib import Path
 
 import boto3
+from botocore.exceptions import ClientError
+from loguru import logger
 
 
 _general_purpose_instance_types = ["t2.nano", "t2.micro", "t2.small",
@@ -217,9 +219,13 @@ def determine_correct_instance(ami_size_estimate_mb: int) -> str:
     ami_size_estimate_mb += 4096  # overhead for the aws-parallelcluster base AMI
 
     client = boto3.client('ec2')
-    instance_options = client.describe_instance_types(InstanceTypes=_general_purpose_instance_types)["InstanceTypes"]
-    correct_instance = None
+    try:
+        instance_options = client.describe_instance_types(InstanceTypes=_general_purpose_instance_types)["InstanceTypes"]
+    except ClientError as e:
+        logger.error(e)
+        raise
 
+    correct_instance = None
     for instance in sorted(instance_options, key=lambda instance: instance['MemoryInfo']['SizeInMiB']):
         if instance['MemoryInfo']['SizeInMiB'] > ami_size_estimate_mb:
             correct_instance = instance['InstanceType']

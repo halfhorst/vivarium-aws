@@ -2,6 +2,7 @@ import shutil
 import random
 
 import boto3
+from botocore.exceptions import ClientError
 from loguru import logger
 
 
@@ -32,7 +33,11 @@ def ensure_aws_credentials_exist():
 def ensure_ami_exists(region: str, ami_id: str):
     """Raise a runtime error if the ami_id does not exist."""
     client = boto3.client('ec2', region_name=region)
-    response = client.describe_images(Filters=[{'Name': 'image-id', 'Values': [ami_id]}])
+    try:
+        response = client.describe_images(Filters=[{'Name': 'image-id', 'Values': [ami_id]}])
+    except ClientError as e:
+        logger.error(e)
+        raise
 
     if len(response['Images']) == 0:
         raise RuntimeError("AMI with id {ami_id} not found. Please check "
@@ -52,7 +57,12 @@ def get_default_vpc(region: str) -> str:
     Default VPCs are created automatically. They would only fail to exist if
     the user specifically deleted theirs.
     """
-    client = boto3.client('ec2', region_name=region)
+    try:
+        client = boto3.client('ec2', region_name=region)
+    except ClientError as e:
+        logger.error(e)
+        raise
+
     response = client.describe_vpcs(Filters=[{'Name': 'isDefault', 'Values': ['true'],
                                               'Name': 'state', 'Values': ['available']}])
 
@@ -73,8 +83,12 @@ def get_default_subnet_id(region: str, vpc_id: str) -> str:
     AZ and it may be the case that users encounter issues and need to manually
     adjust their subnet."""
     client = boto3.client('ec2', region_name=region)
-    response = client.describe_subnets(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id],
+    try:
+        response = client.describe_subnets(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id],
                                                  'Name': 'state', 'Values': ['available']}])
+    except ClientError as e:
+        logger.error(e)
+        raise
 
     num_subnets = len(response['Subnets'])
     if num_subnets == 0:
@@ -87,7 +101,11 @@ def prompt_for_ec2_keypair(region: str) -> str:
     """Prompt the user with existing EC2 keypairs and return the selection.
     If none exist, raise a RuntimeError."""
     client = boto3.client('ec2', region_name=region)
-    response = client.describe_key_pairs()
+    try:
+        response = client.describe_key_pairs()
+    except ClientError as e:
+        logger.error(e)
+        raise
 
     num_key_pairs = len(response['KeyPairs'])
 
