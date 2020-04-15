@@ -24,9 +24,13 @@ def ensure_aws_credentials_exist():
     session = boto3.session.Session()
     credentials = session.get_credentials()
     if credentials is None:
-        raise RuntimeError("No AWS credentials found. ")
+        message = "No AWS credentials found."
+        logger.error(message)
+        raise RuntimeError(message)
     if session.region_name is None:
-        raise RuntimeError("No default region set.")
+        message = "No default region set."
+        logger.error(message)
+        raise RuntimeError(message)
     logger.info(f"AWS credentials found! ({credentials.method})")
 
 
@@ -40,13 +44,16 @@ def ensure_ami_exists(region: str, ami_id: str):
         raise
 
     if len(response['Images']) == 0:
-        raise RuntimeError("AMI with id {ami_id} not found. Please check "
+        message = ("AMI with id {ami_id} not found. Please check "
                            "your EC2 console and look for typos.")
+        logger.error(message)
+        raise RuntimeError(message)
 
 
 def get_default_region() -> str:
     """Get the default region specified in the user's credentials."""
     session = boto3.session.Session()
+    logger.info(f"Default region identified! ({session.region_name})")
     return session.region_name
 
 
@@ -67,8 +74,10 @@ def get_default_vpc(region: str) -> str:
                                               'Name': 'state', 'Values': ['available']}])
 
     if len(response['Vpcs']) == 0:
-        raise RuntimeError("No available default VPC found. Please create one or specify "
+        message = ("No available default VPC found. Please create one or specify "
                            "one at runtime.")
+        logger.error(message)
+        raise RuntimeError(message)
 
     # there can only be one default VPC by region
     return response['Vpcs'][0]['VpcId']
@@ -92,7 +101,9 @@ def get_default_subnet_id(region: str, vpc_id: str) -> str:
 
     num_subnets = len(response['Subnets'])
     if num_subnets == 0:
-        raise RuntimeError(f"No subnets exist for VPC {vpc_id}.")
+        message = f"No subnets exist for VPC {vpc_id}."
+        logger.error(message)
+        raise RuntimeError(message)
 
     return response['Subnets'][0]['SubnetId']
 
@@ -110,8 +121,9 @@ def prompt_for_ec2_keypair(region: str) -> str:
     num_key_pairs = len(response['KeyPairs'])
 
     if num_key_pairs == 0:
-        raise RuntimeError("An EC2 Keypair is required to setup a cluster. "
-                           "Please create one.")
+        message = ("An EC2 Keypair is required to setup a cluster. Please create one.")
+        logger.error(message)
+        raise RuntimeError(message)
 
     selected_pair_idx = None
     key_names = [kp['KeyName'] for kp in response['KeyPairs']]
