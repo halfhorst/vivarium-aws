@@ -21,9 +21,9 @@ def get_default_configuration(cluster_name: str) -> ConfigParser:
 
     config[f'cluster {cluster_name}'] = {
         'base_os': 'ubuntu1804',
-        'initial_queue_size': 0,
-        'max_queue_size': 10,
-        'maintain_initial_size': 'false',
+        'initial_queue_size': 1,
+        'max_queue_size': 50,
+        'maintain_initial_size': 'true',
         'vpc_settings': cluster_name,
     }
 
