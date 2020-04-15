@@ -112,7 +112,7 @@ def make_mosh_security_group(region: str, vpc_id: str) -> str:
     response = security_group.authorize_ingress(
         CidrIp='0.0.0.0/0',
         FromPort=60001,
-        ToPort=60001,
+        ToPort=60020,
         IpProtocol='udp'
     )
 
