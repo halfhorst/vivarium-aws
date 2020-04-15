@@ -1,6 +1,17 @@
 from configparser import ConfigParser
+from tempfile import TemporaryFile
 
 import boto3
+
+
+_post_install_script = """
+#!/bin/bash
+
+# Configuration for vivarium_cluster_tools
+echo "export SGE_CLUSTER_NAME=aws-cluster" >> /home/ubuntu/.bashrc
+echo "export HOSTNAME=aws-ec2-instance" >> /home/ubuntu/.bashrc
+
+"""
 
 
 def get_default_configuration(cluster_name: str) -> ConfigParser:
@@ -67,8 +78,9 @@ def make_configuration(cluster_name: str,
     configuration[f'cluster {cluster_name}']['s3_read_write_resource'] = f"arn:aws:s3:::{s3_bucket}*"
 
     # post_install_path = s3_bucket + "/vaws/post_install.sh"
-    # upload_to_s3(post_install_path, _post_install_script)
-    # configuration[f'cluster {cluster_name}']['post_install'] = 's3://' + post_install_path
+    post_install_key = "vaws/post_install.sh"
+    upload_to_s3(s3_bucket, post_install_key, _post_install_script)
+    configuration[f'cluster {cluster_name}']['post_install'] = 's3://' + s3_bucket + '/' + post_install_key
 
     configuration[f'vpc {cluster_name}']['vpc_id'] = vpc_id
     configuration[f'vpc {cluster_name}']['master_subnet_id'] = master_subnet_id
@@ -117,3 +129,11 @@ def make_mosh_security_group(region: str, vpc_id: str) -> str:
     )
 
     return security_group.group_id
+
+
+def upload_to_s3(bucket: str, key: str, contents: str):
+    s3_client = boto3.client('s3')
+    with TemporaryFile() as f:
+        f.write(bytes(contents, encoding='UTF-8'))
+        f.seek(0)
+        response = s3_client.upload_fileobj(f, bucket, key)
