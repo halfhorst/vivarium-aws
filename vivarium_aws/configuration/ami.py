@@ -91,27 +91,21 @@ sudo -u ubuntu $HOME/miniconda3/envs/simulation/bin/pip install -e .
 
 def make_configuration(ami_name: str, code_root: Path, output_root: Path,
                        artifact_paths: list, region: str):
-    """Generate a Packer configuration file for provisioning an AMI that
-    contains the data artifacts and simulation code defined in code_root.
+    """Generate a Packer configuration and accompanying data in a folder at
+    output_root. The folder name is determined by the ami_name. The accompanying
+    data is gzipped source code from code_root and a provisioning script. If
+    artifact_paths are passed as None they are scraped from the model
+    specifications in the code root.
 
-    The configuration includes secondary files so the entire result is placed
-    in a directory named after ami_name.
-
-    The artifact file locations are scraped from the model specifications found
-    in `code_root` unless paths are explicitly passed by `artifact_paths`.
-    Provisioners are created to load each artifact into the image.
-
-    The artifact paths in the model specification files are modified to
-    point to the pre-determined location inside the image where artifacts are
-    placed.
+    Note that the model specifications in code_root are modified to reflect
+    where the provisioning script will move the artifacts to inside the image.
     """
-
     output_path = output_root / f"{ami_name}_ami_configuration"
     output_path.mkdir(exist_ok=True)
 
     package_name = code_root.name
 
-    #  This process overwrites configuration in the code root so we operate on a copy
+    # This process overwrites configuration so we operate on a copy
     tempdir = tempfile.TemporaryDirectory()
     tempdir_path = Path(tempdir.name) / 'vaws_configuration'
     shutil.copytree(code_root, tempdir_path, ignore=shutil.ignore_patterns('*.hdf', '*.h5'))
@@ -152,9 +146,7 @@ def make_configuration(ami_name: str, code_root: Path, output_root: Path,
 
 
 def make_artifact_provisioners(artifact_paths: list) -> list:
-    """Construct a list of Packer provisioners that load artifacts into the
-    image.
-    """
+    """Construct a list of Packer provisioners that load artifacts into /tmp."""
 
     provisioners = []
     for path in artifact_paths:
@@ -163,6 +155,7 @@ def make_artifact_provisioners(artifact_paths: list) -> list:
             "source": str(path),
             "destination": f"/tmp/{path.name}"
         })
+
     return provisioners
 
 
@@ -170,24 +163,25 @@ def get_artifact_paths(code_root: Path) -> list:
     """Parse a Vivarium package directory tree for model specifications and
     extract the artifact paths.
     """
-
     paths = []
     for config_path in code_root.glob("**/model_specifications/*.yaml"):
         with open(config_path, "r+") as f:
             config = yaml.load(f.read(), Loader=yaml.FullLoader)
             artifact_path = Path(config["configuration"]["input_data"]["artifact_path"])
             paths.append(artifact_path)
+
     return paths
 
 
 def update_model_specification_artifact_paths(code_root: Path) -> list:
-    """Parse a Vivarium package directory tree and upate the model specifications
-    to point artifact paths to the correct location in the image.
+    """Parse a Vivarium package directory tree and upate the model
+    specifications to point artifact paths to a pre-determined location in the
+    image.
 
     Until component ordering is inconsequential, e.g. we have dependency
-    ordering, yaml manipulation must preserve order.
+    ordering, yaml manipulation of components must preserve order. This means
+    pyyaml can't be used.
     """
-
     for config_path in code_root.glob("**/model_specifications/*.yaml"):
         with open(config_path, "r+") as f:
             config = f.read().split(sep='\n')
@@ -215,7 +209,6 @@ def determine_correct_instance(ami_size_estimate_mb: int) -> str:
     """Determine the smallest instance type that can safely hold the estiamted
     artifact data size, with affordance for overhead.
     """
-
     ami_size_estimate_mb += 4096  # overhead for the aws-parallelcluster base AMI
 
     client = boto3.client('ec2')
@@ -240,8 +233,7 @@ def determine_correct_instance(ami_size_estimate_mb: int) -> str:
 
 
 def tar_exclude_hdf(fname: str) -> bool:
-    """An hdf file exclusion function for use with tarball.add().
-    """
+    """An hdf file exclusion function for use with tarball.add()."""
 
     if fname.endswith('.hdf') or fname.endswith('.h5'):
         return True

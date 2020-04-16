@@ -8,9 +8,10 @@ from loguru import logger
 
 def ensure_system_command_exists(command: str):
     """Raise a RuntimeError if `command` is not executable on this system."""
+
     if shutil.which(command) is None:
         raise RuntimeError(f"The command `{command}` must be installed on your "
-                          "machine. Please consult the vaws requirements.")
+                            "machine. Please consult the vaws requirements.")
 
 
 def ensure_aws_credentials_exist():
@@ -18,8 +19,8 @@ def ensure_aws_credentials_exist():
     configured on this system.
 
     For more information, see the boto3 or aws cli documentation sections on
-    credentials. There are several ways to specify credentials, the easies
-    being a credentials file in `~/.aws`.
+    credentials. There are several ways to specify credentials, the easiest
+    being a credentials file located at `~/.aws`.
     """
     session = boto3.session.Session()
     credentials = session.get_credentials()
@@ -35,7 +36,8 @@ def ensure_aws_credentials_exist():
 
 
 def ensure_ami_exists(region: str, ami_id: str):
-    """Raise a runtime error if the ami_id does not exist."""
+    """Raise a runtime error if and AMI with id ami_id does not exist."""
+
     client = boto3.client('ec2', region_name=region)
     try:
         response = client.describe_images(Filters=[{'Name': 'image-id', 'Values': [ami_id]}])
@@ -52,8 +54,10 @@ def ensure_ami_exists(region: str, ami_id: str):
 
 def get_default_region() -> str:
     """Get the default region specified in the user's credentials."""
+
     session = boto3.session.Session()
     logger.info(f"Default region identified! ({session.region_name})")
+
     return session.region_name
 
 
@@ -88,9 +92,10 @@ def get_default_subnet_id(region: str, vpc_id: str) -> str:
 
     Irritatingly, EC2 instance availability varies by availability zone in
     a way that doesn't appear to be programmatically accessible. In fact, it is
-    totally opaque as far as I can tell. So, there is no good way to pick an
-    AZ and it may be the case that users encounter issues and need to manually
-    adjust their subnet."""
+    totally opaque as far as I can tell so there is no good way to pick an
+    AZ. It may be the case that users encounter issues and need to manually
+    adjust their subnet.
+    """
     client = boto3.client('ec2', region_name=region)
     try:
         response = client.describe_subnets(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id],
@@ -109,8 +114,9 @@ def get_default_subnet_id(region: str, vpc_id: str) -> str:
 
 
 def prompt_for_ec2_keypair(region: str) -> str:
-    """Prompt the user with existing EC2 keypairs and return the selection.
-    If none exist, raise a RuntimeError."""
+    """Prompt the user with existing EC2 keypairs and return their selection. If
+    none exist, raise a RuntimeError.
+    """
     client = boto3.client('ec2', region_name=region)
     try:
         response = client.describe_key_pairs()

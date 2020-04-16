@@ -18,8 +18,8 @@ echo "export HOSTNAME=aws-ec2-instance" >> /home/ubuntu/.bashrc
 
 def get_default_configuration(cluster_name: str) -> ConfigParser:
     """A factory for producing a ConfigParser object containing a baseline
-    aws-parallelcluster configuration."""
-
+    aws-parallelcluster configuration.
+    """
     config = ConfigParser()
 
     config['aws'] = {}
@@ -60,12 +60,12 @@ def make_configuration(cluster_name: str,
                        master_instance: str,
                        compute_instance: int,
                        max_queue_size: str):
-    """Generate an aws-parallelcluster configuration file for provisioning a
-    grid engine cluster on AWS suitable for running Vivarium simulations.
+    """Generate an aws-parallelcluster ini configuration file.
 
-    The cluster nodes are booted from the Amazon Machine Image (AMI) defined
-    by ami_id.  If this immage was made with `vaws`, it contains everything
-    necessary to run a simulation.
+    The configuration process has a few implications for cloud resources. A
+    security group is created to enable UDP access on ports 60001-60020 for
+    `mosh` access and a shell script is uploaded to the S3 bucket to be used
+    as a post-install script on each cluster node.
     """
 
     configuration = get_default_configuration(cluster_name)
@@ -97,13 +97,12 @@ def make_configuration(cluster_name: str,
 
 
 def make_mosh_security_group(region: str, vpc_id: str) -> str:
-    """Make an AWS security group that allows UDP access on port 60001 and
-    return its ID.
+    """Make an AWS security group that allows UDP access on ports 60001-60020
+     and return its ID.
 
-    UDP/60001 is the protocol/port that is used by mosh, a disconnect-resistent
-    remote terminal application.
+    UDP/60001~60100 is the protocol/port range that is used by mosh, a
+    disconnect-resistent remote terminal application.
     """
-
     client = boto3.client('ec2', region_name=region)
 
     try:
@@ -141,6 +140,8 @@ def make_mosh_security_group(region: str, vpc_id: str) -> str:
 
 
 def upload_to_s3(bucket: str, key: str, contents: str):
+    """Write a string `contents` to an S3 bucket under the name `key`."""
+
     s3_client = boto3.client('s3')
     with TemporaryFile() as f:
         f.write(bytes(contents, encoding='UTF-8'))

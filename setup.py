@@ -8,7 +8,8 @@ setup(
         'click',
         'boto3',
         'loguru',
-        'aws-parallelcluster==2.6.1',  # AMI Filtering relies on this version, see configuration.ami
+        'aws-parallelcluster==2.6.1',  # AMI Filtering relies on this version
+                                       # see vivarium_aws.configuration.ami
     ],
 
     entry_points="""

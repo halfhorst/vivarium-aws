@@ -23,12 +23,12 @@ def vaws():
 
 @vaws.group('configure')
 def configure():
-    """Generate configuration files for provisioning an Amazon Maching Image
-    (AMI) or grid engine cluster capable of running Vivarium simulations.
+    """Generate configuration files describing an Amazon Maching Image (AMI) or
+    grid engine cluster on AWS.
 
-    The AMI configuration data is a Packer configuration and gzipped code. The
-    grid engine cluster configuration is an aws-parallelcluster ini
-    configuration.
+    An AMI configuration depends on a Packer configuration file, gzipped source
+    code, and any artifacts specified. A grid engine cluster is solely an
+    aws-parallelcluster ini configuration file.
     """
     pass
 
@@ -54,17 +54,21 @@ def make():
 @click.argument("ami_name", type=click.STRING)
 @click.argument("code_root", type=click.Path(file_okay=False, exists=True))
 @click.option("-o", "--output-path", type=click.Path(file_okay=False, exists=False),
-              help="The output directory to place the AMI configuration in. The default "
+              help="The output directory to place the AMI configuration folder in. The default "
                    "is the current directory.")
 @click.option("-a", "--artifact-path", multiple=True, type=click.Path(dir_okay=False, exists=True),
-              help="Specifies an artifact file to upload. This can be passed multiple times. The "
-                   "default behavior pulls all artifacts from the model specifications found in "
-                   "the root code directory.")
+              help="Specifies an artifact file to upload. This can be specified multiple times. The "
+                   "default behavior pulls all artifact locations from the model specifications found "
+                   "in code_root.")
 @click.option("-r", "--region", type=click.STRING, help="The AWS region to construct the AMI in.")
 def configure_ami(ami_name, code_root, output_path, artifact_path, region):
-    """Generate a Packer configuration for an Amazon Machine Image (AMI) named
-    AMI_NAME that contains the Vivarium code and data necessary to run the model
-    defined at CODE_ROOT.
+    """Generate a Packer configuration and accompanying data describing an
+    Amazon Machine Image (AMI) named AMI_NAME that contains the Vivarium code
+    and data necessary to run the model defined at CODE_ROOT.
+
+    The accompanying data is the gzipped source code and a provisioning shell
+    script. Access to the data artifacts is also required at the time the AMI is
+    made.
     """
     utilities.ensure_aws_credentials_exist()
 
@@ -126,20 +130,20 @@ def configure_cluster(cluster_name: str,
     CLUSTER_NAME will be used to identify resources associated with the cluster.
     AMI_ID should be an Amazon Machine Image (AMI) created using `vaws configure
     ami` and `vaws make ami` to ensure it is correctly configured for Vivarium.
-    This machine is used for each instance.
+    This machine is used to create each node in the cluster.
 
-    S3_BUCKET is the name of an existing S3 bucket that the cluster will be
-    given read/write access to in order to store results. It is also used to
+    S3_BUCKET is the name of an existing S3 bucket that will be made read/write
+    accessible by the cluster in order to store results. It is also used to
     stash a bootstrapping script for the cluster.
 
-    This tool is intended to provide the lowest possible barrier of entry for
-    setting up a cloud cluster to run Vivarium simulations. It sets sane
-    defaults wherever possible but retains full customizability -- The output is
-    a valid aws-parallelcluster configuration file that can be used with
-    `pcluster` and can be modified at will if desired. Also, note that
-    `pcluster` provides a convenient configuration command that can help setup a
-    cluster configuration not specific to Vivarium, which could then be
-    modified.
+    This configuration command is intended to provide the lowest possible
+    barrier of entry forvsetting up a cluster to run Vivarium simulations on
+    cloud resources. It sets sane defaults wherever possible but retains full
+    customizability -- The output is a valid aws-parallelcluster configuration
+    file that can be used with `pcluster` and can be modified at will if
+    desired. Also, note that `pcluster` provides a convenient configuration
+    command that can help setup a cluster configuration not specific to
+    Vivarium, which could then be modified.
     """
     utilities.ensure_aws_credentials_exist()
 
@@ -167,11 +171,12 @@ def configure_cluster(cluster_name: str,
 @click.argument('ami_config', type=click.Path(dir_okay=False, exists=True))
 def make_ami(ami_config: str):
     """Build an Amazon Machine Image (AMI) with Packer using the configuration
-    AMI_CONFIG.
+    file AMI_CONFIG.
 
+    Access to the data artifacts specified at configuration time is required.
     This command provisions an EC2 instance and uses it to build a machine
-    image. It is a very thin wrapper around `packer build`. You can use packer
-    yourself if you want more control.
+    image. It is a very thin wrapper around `packer build`, you can use packer
+    directly if you want more control.
     """
     utilities.ensure_aws_credentials_exist()
     utilities.ensure_system_command_exists('packer')
@@ -200,10 +205,12 @@ def make_cluster(cluster_config: str, cluster_name: str):
 
     This command provisions several cloud resources culminating in an EC2
     instance that serves as the qmaster. You can then connect to the qmaster
-    using `ssh` or `mosh` and run simulations. `make_cluster` is a very thin
-    wrapper around `pcluster create` which comes from aws-parallelcluster. You
-    can use `pcluster` to directly interact with your configuration or cluster
-    if you want more control.
+    using `ssh` or `mosh` and run simulations using the `psimulate` group of
+    commands.
+
+    `make_cluster` is a very thin wrapper around `pcluster create` included
+    for completeness. You can use `pcluster` to directly create your cluster,
+    and you will administer yout cluster using it as well.
     """
     utilities.ensure_aws_credentials_exist()
     utilities.ensure_system_command_exists('pcluster')
