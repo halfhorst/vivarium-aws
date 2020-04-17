@@ -12,7 +12,8 @@ from vivarium_aws import utilities
 
 @click.group()
 def vaws():
-    """A toolbox for running Vivarium simulations on AWS.
+    """Tools for setting up and running vivarium simulations on Amazon Web
+    Services (AWS).
 
     Start by configuring and making an AMI that contains simulation code and
     data. Then, using this AMI, configure and make an SGE cluster with which
@@ -57,9 +58,11 @@ def make():
               help="The output directory to place the AMI configuration folder in. The default "
                    "is the current directory.")
 @click.option("-a", "--artifact-path", multiple=True, type=click.Path(dir_okay=False, exists=True),
-              help="Specifies an artifact file to upload. This can be specified multiple times. The "
-                   "default behavior pulls all artifact locations from the model specifications found "
-                   "in code_root.")
+              help="Specifies a different location to upload an artifact from. The name of the artifact "
+                   "file must match the name of an artifact used in an existing model_specification or "
+                   "the correct artifact will not be located for a simulation. This can be specified multiple "
+                   "times. The default behavior pulls all artifact locations from the model specifications "
+                   "found in code_root.")
 @click.option("-r", "--region", type=click.STRING, help="The AWS region to construct the AMI in.")
 def configure_ami(ami_name, code_root, output_path, artifact_path, region):
     """Generate a Packer configuration and accompanying data describing an

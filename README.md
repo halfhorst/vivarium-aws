@@ -1,136 +1,125 @@
 # vivarium-aws
 
-Tools for running vivarium simulations on Amazon Web Services (AWS)>
+A python package with tools for setting up and running vivarium simulations on Amazon Web Services (AWS).
 
 # Overview
 
-This library helps with configuring an SGE (son of grid engine) cluster on AWS specifically intended to run Vivarium simulations, as well as running the simulations themselves and managing the results. The steps required to get up and running are broadly as follows:
+This library is intended to provide the shortest path to propping up a dynamic SGE (Son of Grid Engine) cluster in the cloud configured to run Vivarium simulations. A cluster made with this library is disposable and can be re-made very easily, scales up to the amount of work submitted (with a limit) and back down when there is no work to be done, and is created with the code and data necessary to run a specific Vivarium simulation, though it can be used to run whatever you want if you push the right data up to it. It weaves together several utilities, providing sane defaults and provisioning for the Vivarium ecosystem. Familiarity with AWS would be helpful but should not be required. An AWS account is mandatory, however, and we will not stay within the bounds of the free tier.
 
-1. Setting up credentials and configuring an IAM role with the permissions it needs to manage the resources used running the cluster.
-3. Setting up an S3 bucket to hold your simulation data and results.
-2. Copying the model's Vivarium data artifact to the S3 bucket.
-3. Copying the cluster's bootstrap script to the S3 bucket
-3. Initiating the cluster from a configuration file using Amazon's tooling.
+Setting up a cluster containing on artifact and simulation code is fast and inexpensive. I takes roughly ten minutes, excluding one-time setup like creating an IAM role and an S3 bucket, and most of this time is spent building the machine image and waiting for EC2 instances to come online. The steps to get there go like this:
 
-At this point, simulations can be run. This library additionally provides tools for starting simulations, monitoring their progress, and manipulating and exploring results stored in S3. Keep in mind that the command line tools provided here all have `--help` flags, and your cluster and AWS services can also be manipulated through `pcluster` (aws-parallelcluster) and `aws <service-name>` (aws-cli).
+##### AWS Setup
 
-# Credentials
+This setup will be performed infrequently, or potentially just once.
 
-Initial bootstrapping consists of: 
+1. Create an IAM role and give it the permission to manipulate EC2 and S3 resources. Set up its credentials on your machine.
 
-1. Making an IAM role
-2. Configuring your local machine with the role's access key id and secret
-3. Giving that role permission over the services the cluster needs
-4. Setting up SSH keys specifically for connecting to ec2
+2. Create an S3 bucket to hold your simulation results.
 
-## IAM Roles
+3. Create an EC2 keypair.
 
-Current best practice is to create an IAM user that will be responsible for running Vivarium simulations, and give that role permissions for s3, ec2 and cloudformation only. This means not creating root credentials for the owner of the AWS account and handing those out to everything, including vivarium-aws.
+##### Provisioning the Cluster
 
-## S3
+1. Make a configuration describing an Amazon Machine Image (AMI) configured for a specific Vivarium simulation.
 
-s3fs uses boto3's credential methods for authentication, which is widely applicable to the AWS ecosystem. The two easiest methods are either environment variables or a global config. The environment variables should be `aws_access_key_id` and `aws_secret_access_key`. The config file follows .ini conventions and should be placed in ~/.aws/credentials. For example:
+2. Build the machine image.
+
+3. Make a configuration for an SGE cluster composed of machines running the AMI made in the previous step.
+
+4. Create the cluster
+
+5. Connect via SSH/mosh and run simulations
+
+The AWS setup can be performed with any of the tools Amazon provides for interacting with AWS resources (the AWS cli, a client library like boto3 for python, the management console) but the management console is the most beginner-friendly, albeit still confusing at times.
+
+vivarium-aws itself provides command line tools under `vaws` for performing the cluster provisioning tasks. These commands are generally thin wrappers on top of `packer` and `pcluster` (from aws-parallelcluster), with Vivarium-specific help where necessary. The native configuration formats for each of these tools is preserved, and they can be used with the outputs from `vaws` as desired. In fact, once a cluster is running, `pcluster` is the right way to deal with it.
+
+# Requirements
+
+In addition to its python dependencies, vivarium-aws requires [Packer](https://www.packer.io/) to help build machine images.
+
+# AWS setup
+
+## IAM and Credentials
+
+Identity and access management (IAM) is an important security aspect of AWS. An AWS account defaults to a root user with complete control over resources. You can control this unfettered access, though it is not necessary, by creating an IAM user with programmatic access and permissions limited to the scope of work and use that to administer services. The aws-parallelcluster docs have more information on what specific permissions you would need to provide [here](https://docs.aws.amazon.com/parallelcluster/latest/ug/iam.html).
+
+
+You will use your new IAM user or root user's access key to run vaws commands. By default, vaws (and most AWS tools) will look for credentials in several locations, inlcuding hidden locations on disk and environment variables. The simplest thing to do is to place your user credentials in the file `~/.aws/credentials` where they will be automatically picked up. This is also where you should specify your default AWS region, where your resources will be provisioned.
 
 ```
 [default]
-aws_access_key_id=foo
-aws_secret_access_key=bar
-region_name=us-west-2
+aws_access_key_id=<your access key id>
+aws_secret_access_key=<your access key>
+region=<your region>
 ```
 
-Here "default" is the default profile name. boto3 supports profiles, but s3fs does not appear to. It is also a good idea to be mindful of where resources are located on AWS, especially because data transfer can be very expensive. You can set your preferred region via environment by setting the variable `AWS_DEFAULT_REGION`. From experience, this default is not respected by s3fs. If you are playing around with s3fs, you will find you need to pass your desired region in using the region_name kwarg.
+See [here](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html) for more information on credentials. Since vivarium-aws uses boto3, any of these methods should work.
 
-*note* that `awscli s3 <cmd>` gives you a filesystem-like command line interface to s3 just like s3fs gives from within python, and understands the same credentials above.
+## S3 Buckets
 
-*note* s3 bucket names can be used in public urls to facilitate access to the data. Thus, they must be unique by region (that is a huge user pool). It behooves you to come up with a naming scheme that guides you away from trivially common words and phrases.
+S3 (Simple Storage Service) is basic cloud storage. It's used by vivarim-aws to stash a cluster provisioning script and it is also a logical long-term home for simulation results your cluster produces. S3 is organized around buckets that contain block data in named keys. There is no actual filesystem or hierarchy but the notion is respected in keys with a pathlike name by convention in the UI. You need to create a bucket to stash your results in the S3 console. It doesn't matter if the bucket is private or public.
 
-## EC2 Credentials
+## EC2 keypairs
 
-ec2 will rely on the same credentials setup for s3, thanks to aws tooling generally using the same mechanisms for authentication: environment variables or configuration files. However, the parallel cluster layered on top of ec2 instances requires an additional piece of security: an ec2 SSH keypair.
+An EC2 keypair is a named public key that is used to connect to EC2 instances. You will provide this key's name when configuring the cluster and use it to connect to your cluster. You can create one in the console, or create one on your local machine and import it by copying the public key into the console.
 
-ensure you create or upload the keypair in the correct region.
+# Running a simulation
 
-# Copying Data to S3
+## Making a Cluster
 
-Keep in mind that S3 is flat storage, and all likeness to a filesystem scheme is just naming conventions.
+Before making the cluster, a machine image containing the code and data needs to be created. Use `vaws configure ami`, giving it a path to the root of a Vivarium simulation package, and then create an image from the resulting configuration using `vaws make ami`. You will need access to the data artifacts specified in each model specification's artifact_path key or at the locations specified as command line options.
 
-*NOTE: think long and hard about how to get code out to the nodes. git clone? what do we do about local installs? is the clone done by a pre-install bootstrap script or is it a pre-task of the simulation running? How do I send environments out to the jobs?
-Maybe the code needs to live on S3. Maybe you can clone or copy up a tar (local installs).*
+Once the AMI is made you can create a cluster configuration using `vaws configure cluster` and then provision it with `vaws make cluster`. When you configure your cluster, you will provide the S3 bucket you want access to as well as the ID of the AMI you just created with the code and data (you can retrieve your AMI ID using the EC2 management console). At configuration time you can optionally specifiy a few other important aspects of the cluster.
 
-## bootstrap script
+* The instance type of the master and compute nodes. Your master node should be big enough to hold a batch of results, and the compute nodes should be able to run a simulation. Since Vivarium simulations are single-threaded, so multiple jobs will run on an instance with multiple vCPUs.
 
-Certain software is required to run Vivarium simulations, foremost is Python 3. To configure the cluster, we provide a shell script that installs the necessary software, and denote this as a bootstrap script in the cluster configuration. However, the expected location is on S3, so the script must be copied there. Importantly, this script will be used to setup the conda environment with the code to run the simulation, so it is model-specific. To do this, run `cmd`.
+* The max queue size. This is the upper bound on the number of compute instances that will be spawned. Since work is deterministic and not spawned in response to external events, there isn't risk of unbounded workers. You likely want to just set this to the number of simulations dictated by your branches file.
 
-## Data Artifact
+* The master subnet id. A subnet is a chunk of your Virtual Private Cloud (VPC), your own personal block of IP addresses to use amongst your resources. The subnet id is relevant because it is specific to an availability zone, which sits underneat a region. EC2 instance type availability is availability zone-specific. One thing vivarium-aws can't handle intelligently is picking a subnet id for you based on your instance choices. If you don't specify a subnet it will pick one of yours, but it may not work. This should be the first place you look.
 
-S3 is used for persistent storage on the cluster that is visible to all cluster nodes. This is where the data artifact for the simulation should be stored, and it's where simulation outputs are stored. Vivarium aws provides tools to help copy data between your local machine and s3 as well as parse simulation results.
+## Connecting and Running a Simulation
 
-To run a simulation on AWS, you must copy your data artifact to S3 and ensure that the model configurations point to the artifact's location. These are model-specific tasks and must be repeated for each different model you wish to run.
+Once the cluster comes online you can SSH into it directly using the username `ubuntu` and it's public IP, or using `pcluster ssh`:
 
-To copy, peruse, etc artifacts on S3, do the following, use the following commands.
+```
+$> ssh ubuntu@<public IP>
+```
 
-# Configuring the Cluster
+The cluster is also configured to allow connections via [`mosh`](https://mosh.org/), which is a remote shell that enables roaming. It is very useful and will allow you to reconnect to your running simulation if you get disconnected.
 
-We can now initiate your SGE cluster from the configuration provided by this repository. To do this, we will rely on aws-parallelcluster.
+Inside the cluster, the simulation code lives in `ubuntu`'s home directory. A conda environment named `simulation` has been created with all the necessary packages installed, so activate it and start a simulation with `psimulate`. Not all model specifications are valid, though -- only the ones for which you uploaded data artifacts. The data artifacts are located at `/usr/local/share/vivarium/artifacts`.
 
-`pcluster configure`
+## Retrieving Results
 
-create a cluster that you will use to run the simulations
-important aspects -- min and max cluster size, instance type
+Once your simulation is finished, you can send it to the S3 bucket you configured your cluster to have access to using the aws cli. You can move all of the simulation related data, including logs, by syncing a local directory with your s3 bucket:
 
-cluster type must be sge, this is what Vivarium is configured for.
+```
+$> aws s3 sync /path/to/simulation/output s3://<bucket_name>/desired_key_name
+```
 
-`pcluster create` -- note that this will create a running instance of a master node for the cluster which will consume resources -- and thus cost money -- until the cluster is deleted.
+The model results will then be persisted in S3 and can be downloaded from the console or any other AWS interfaces.
 
-Take a look at the configuration file, the key parameters are annotated. AWS also provides an exhaustive documentation.
+## Administering the cluster
 
-## Connecting to your cluster
+Since clusters made with `vaws` are made using aws-parallelcluster, you can use `pcluster` to administer them. `list` will show clusters still present in the cloud, and `status` will give you more information about a cluster, including its public IP.
 
-pcluster ssh cluster-name [-i ~/path/to/sshkey]
+Other useful commands are `stop` to take down your instances and cease paying for compute time, and `delete` to safely remove all of your cloud resources. You can also alter the cluster configuration and push this up to a running cluster with `update`.You can stop your cluster to cease paying for compute time, and you can and should delete the cluster using `pcluster delete`. Doing so will ensure that your cloud resources are cleaned up nicely.
 
-# Running a Simulation
+# Cost Considerations
 
-## Initiation
+The majority of the cost of running a simulation will come directly from EC2 compute time and, to a smaller degree, data transfer costs sending the machine images to the nodes. There is little extra cost due to data storage because simulation output sizes are small on S3's scale, as are AMI sizes. Nonetheless, run a small simulation first and use the cost explorer to see the effects.
 
-## Monitoring
-
-# Looking Simulation Results
-
-# Architecture
-
-Vivarium AWS is built upon aws-parallelcluster, which itself relies upon boto3 and aws-clit. All of these provide interfaces to AWS' many services. parallelcluster provides quick and easy configuration of an SGE cluster on top of AWS resources, which is the same sort of cluster IHME uses in house.
-
-Amazon ec2 instances are used for the master node and compute node. S3 is used for artifact and results storage, and the cluster configuration provides access to S3 from each ec2 instance. Additionally,cloudformation is used for configuration, and some queueing services and a NoSQL database are used in the administration of the cluster.
-
-The most important aspect for a user wishing to run simulations is the ec2 instance, specifically its size. You can find this declared in the cluster configuration, and it dictates the amoutn of RAM available for a simulation. A research repository should document the resources necessary to run the simulation.
-
-## Cost considerations
-
-min and max cluster size
-ec2 node size
-master node running indefinitely
-    stop your cluster to avoid costs
-    use the aws cost explorer to examine your costs
-S3 versus other storage backends
-data locality -- stay within region
-spot instances
-
-# Helpful Things
-
-s3fs docs -- https://s3fs.readthedocs.io/en/latest/index.html
-bucket naming docs -- https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-s3-bucket-naming-requirements.html
-
-boto3 docs -- https://boto3.amazonaws.com/v1/documentation/api/latest/index.html
-aws-parallelcluster docs -- https://github.com/aws/aws-parallelcluster
-aws-cli docs -- https://github.com/aws/aws-cli
-    helpful credential info
-
+There are a few important things to keep in mind, though. Transfering data between regions gets expensive fast, so be sure that you are building your AMI and your cluster in the same region. Paying for a single, moderately sized t2 instance is not expensive on a monthly basis, but if you leave a large cluster running things will add up, so stop your cluster if you aren't using it. Finally, running a network address translation (NAT) gateway continuously can get expensive as well. A NAT gateway shouldn't be used if the cluster configuration specifies to use public IPs. The address translation is required when translating public to private. Using public is the default, but be aware if you change it.
 
 # TODO:
 
-Copy local configuration, annotate and set it up
-Write S3 manipulation tools. Copy artifact up
-run a test job to see if everything can see the artifact
-write the bootstrap script and try it
-decide how best to trigger a simulation - paramiko? gRPC?
-figure out how to pull out pathing and abstract awa S3. S3 config key?
+* Add a Docker builder
+* Consider a way to eliminate AMI building using NFS
+
+# Links
+
+[aws-parallelcluster](https://github.com/aws/aws-parallelcluster)
+[boto3](https://github.com/boto/boto3)
+[aws-cli](https://github.com/aws/aws-cli)
+[Packer](https://www.packer.io/)
