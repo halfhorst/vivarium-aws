@@ -119,7 +119,8 @@ There are a few important things to keep in mind, though. Transfering data betwe
 
 # Links
 
-[aws-parallelcluster](https://github.com/aws/aws-parallelcluster)
-[boto3](https://github.com/boto/boto3)
-[aws-cli](https://github.com/aws/aws-cli)
-[Packer](https://www.packer.io/)
+* [aws-parallelcluster](https://github.com/aws/aws-parallelcluster)
+* [boto3](https://github.com/boto/boto3)
+* [aws-cli](https://github.com/aws/aws-cli)
+* [Packer](https://www.packer.io/)
+
