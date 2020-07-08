@@ -1,6 +1,6 @@
 # vivarium-aws
 
-A python package with tools for setting up and running vivarium simulations on Amazon Web Services (AWS).
+A Python package that makes it easy to provision resources and run Vivarium simulations on Amazon Web Services (AWS). This was made to further the goal of reproducible model results by eliminating the requirement of access to IHME infrastructure.
 
 # Overview
 
